@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional, Sequence, Tuple
+from typing import Callable, Dict, Optional, Sequence, Tuple,List
 
 from pyicloud_ipd.file_match import FileMatchPolicy
 from pyicloud_ipd.raw_policy import RawTreatmentPolicy
@@ -14,6 +14,10 @@ class Config:
         username: str,
         auth_only: bool,
         cookie_directory: str,
+        asset_type: Dict[str,List[str]],
+        quality: Sequence[AssetVersionSize],
+        if_edited:Dict[str,List[str]],
+        file_name_policy:Optional[str],
         size: Sequence[AssetVersionSize],
         live_photo_size: LivePhotoVersionSize,
         recent: Optional[int],
@@ -55,6 +59,10 @@ class Config:
         self.username = username
         self.auth_only = auth_only
         self.cookie_directory = cookie_directory
+        self.asset_type=asset_type
+        self.quality = quality,
+        self.if_edited=if_edited,
+        self.file_name_policy=file_name_policy,
         self.size = " ".join(str(e) for e in size)
         self.live_photo_size = live_photo_size
         self.recent = recent

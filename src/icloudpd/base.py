@@ -32,6 +32,7 @@ from typing import (
     Tuple,
     TypeVar,
     cast,
+    List,
 )
 
 import click
@@ -63,6 +64,7 @@ from icloudpd.paths import clean_filename, local_download_path, remove_unicode_c
 from icloudpd.server import serve_app
 from icloudpd.status import Status, StatusExchange
 from icloudpd.string_helpers import truncate_middle
+from icloudpd import asset_filter
 
 
 def build_filename_cleaner(
@@ -112,6 +114,91 @@ def raw_policy_generator(
     else:
         raise ValueError(f"policy was provided with unsupported value of '{raw_policy}'")
 
+
+def asset_type_handle(
+    _ctx: click.Context, _param: click.Parameter, asset_type: Sequence[str]
+):
+    # if error return None,else return a dict {"type":["subtype"]}
+    result={}
+    if len(asset_type) ==0:
+        return {"all":[]}
+    for e in asset_type:
+        t=e.find(":",2)#asset type 至少2个字符，如果没有subtype，type和type:都是合规的写法
+        if t==-1:
+            t=e
+            subt=""
+        else:
+            t,subt=e.split(":",1)
+        if t=="all":
+            return {"all":[]}
+        if t not in asset_filter.asset_type.keys() and t not in asset_filter.asset_type_ex.keys():
+            #raise ValueError(f"type was provided with unsupported value of '{t}'")
+            #return None
+            1
+        else:
+            t_ex="-"+t if t[0]!="-" else t[1:]#t至少2个字符，t[1:]不会溢出
+            if t in result.keys() or t_ex in result.keys():
+                #raise ValueError(f"type was provided duplicate value of '{t}'")
+                #return None
+                1
+            st_list=subt.split(",")
+            result[t]=[]
+            for st in st_list:
+                if st!="": 
+                    result[t].append(st)
+    return result            
+    
+def quality_generator(
+    _ctx: click.Context, _param: click.Parameter, quality: Sequence[str]
+)-> Sequence[AssetVersionSize]:    
+    def _map(q: str) -> AssetVersionSize:
+        if q == "original":
+            return AssetVersionSize.ORIGINAL
+        #elif q == "adjusted":
+        #    return AssetVersionSize.ADJUSTED
+        #elif q == "alternative":
+        #    return AssetVersionSize.ALTERNATIVE
+        elif q == "medium":
+            return AssetVersionSize.MEDIUM
+        elif q == "thumb":
+            return AssetVersionSize.THUMB
+        else:
+            raise ValueError(f"size was provided with unsupported value of '{q}'")
+
+    return [_map(_s) for _s in quality]
+    
+def if_edited_handle(
+    _ctx: click.Context, _param: click.Parameter, if_edited: Sequence[str]
+):
+    # if error return None,else return a dict {str:[str]}
+    result={}
+    if len(if_edited) ==0:
+        return asset_filter.asset_edited
+    for e in if_edited:
+        t=e.find(":",2)#yes or no 至少2个字符，如果没有subtype，yes和yes:都是合规的写法
+        if t==-1:
+            t=e
+            subt=""
+        else:
+            t,subt=e.split(":",1)
+        if t=="all":
+            return asset_filter.asset_type
+        if t not in asset_filter.asset_type.keys() and t not in asset_filter.asset_type_ex.keys():
+            #raise ValueError(f"type was provided with unsupported value of '{t}'")
+            #return None
+            1
+        else:
+            t_ex="-"+t if t[0]!="-" else t[1:]#t至少2个字符，t[1:]不会溢出
+            if t in result.keys() or t_ex in result.keys():
+                #raise ValueError(f"type was provided duplicate value of '{t}'")
+                #return None
+                1
+            st_list=subt.split(",")
+            result[t]=[]
+            for st in st_list:
+                if st!="": 
+                    result[t].append(st)
+    return result  
 
 def size_generator(
     _ctx: click.Context, _param: click.Parameter, sizes: Sequence[str]
@@ -314,6 +401,32 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
     help="Directory to store cookies for authentication " "(default: ~/.pyicloud)",
     metavar="</cookie/directory>",
     default="~/.pyicloud",
+)
+@click.option(
+    "--asset-type","-t",
+    help="specify which type of asset to download: np,lp,raw,video,unknown.default is all.",
+    multiple=True,default=["all"],show_default=True,
+    callback=asset_type_handle,
+)
+@click.option(
+    "--quality","-q",
+    help=("specify quality of asset to download: original,medium,thumb.default is original."
+          "`medium` and `thumb` will always be added as suffixes to filenames"),
+    multiple=True,default=["original"],show_default=True,
+    callback=quality_generator,
+)
+@click.option(
+    "--if-edited","-e",
+    help=("specify asset which be edited or no to download: yes[:before | after | both],no,both.default is both"
+          "(asset of after edited and not edited)"),
+    multiple=True,default=["both"],show_default=True,
+    callback=if_edited_handle,
+)
+@click.option(
+    "--file-name-policy","-fnp",
+    help=("specify file name policy: original,asset-date.default is asset-date"
+          "(yyyymmddhhmmssxxx)"),
+    default=["asset-date"],show_default=True,
 )
 @click.option(
     "--size",
@@ -573,6 +686,10 @@ def main(
     password: Optional[str],
     auth_only: bool,
     cookie_directory: str,
+    asset_type: Dict[str,List[str]],
+    quality:Sequence[AssetVersionSize],
+    if_edited:Dict[str,List[str]],
+    file_name_policy:Optional[str],
     size: Sequence[AssetVersionSize],
     live_photo_size: LivePhotoVersionSize,
     recent: Optional[int],
@@ -677,6 +794,10 @@ def main(
             username=username,
             auth_only=auth_only,
             cookie_directory=cookie_directory,
+            asset_type=asset_type,
+            quality=quality,
+            if_edited=if_edited,
+            file_name_policy=file_name_policy,
             size=size,
             live_photo_size=live_photo_size,
             recent=recent,
